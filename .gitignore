@@ -1,0 +1,11 @@
+# ignore everything but what's inside /Homework/
+*
+!*/
+!.gitignore
+!/Homework/**
+
+# ignore .vscode files
+*.vscode
+
+# ignore .zip compressed folders
+*.zip
