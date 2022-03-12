@@ -2,7 +2,9 @@
 # 520.638 Deep Learning
 # Homework 2 - Problem 2
 #
-#
+# Train and test 10 perceptrons on the MNIST handwritten digit dataset (using the first 20k training samples and 2k test samples)
+# The 'i-th' percecptron in the model will perform binary classification to determine whether or not the sample is an instance of digit 'i'
+# The 10 perceptrons will then be combined into a single 10-way model that outputs the class of whichever sub-binary-classifier is most confident
 #
 
 # import relevant libraries
@@ -10,6 +12,7 @@ import gzip
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.linear_model import Perceptron
+# from sklearn.linear_model import SGDClassifier
 
 # function to extract datasets and labels as numpy arrays from the four .gz folders available at http://yann.lecun.com/exdb/mnist/
 def get_datasets_from_gz_folders(im_size, num_test, num_train):
@@ -73,25 +76,53 @@ def main():
     for id in range(num_digits):
         y_train_id = [1 if yi == id else 0 for yi in y_train]
         perceptron_list.append(Perceptron().fit(x_train,y_train_id))
+        # perceptron_list.append(SGDClassifier(loss="perceptron", eta0=1, learning_rate="constant", penalty=None).fit(x_train,y_train_id)) // exactly equivalent to Perceptron class used above
         print("Done with training classifier for digit " + str(id) + "...")
 
     # compute classification errors on test dataset for each binary classifier
     test_error_list = list()
-    print("Computing test errors for all classifers...")
+    print("Computing test error for each binary classifer individually...")
     for id,clf in enumerate(perceptron_list):
         y_test_id = [1 if yi == id else 0 for yi in y_test]
         y_pred = clf.predict(x_test)
-        err = sum([1 for id,y_val in enumerate(y_test_id) if y_pred[id] != y_val])*100.0/(1.0*num_test_samples) # error percentage
-        test_error_list.append(err)
+        misclass_rate = sum([1 for id,y_val in enumerate(y_test_id) if y_pred[id] != y_val])*100.0/(1.0*num_test_samples) # error percentage
+        test_error_list.append(misclass_rate)
     
-    # print(test_error_list)
+    # plot test errors for each binary classifier
+    plt.figure()
+    plt.bar(range(num_digits),test_error_list)
+    plt.title("(2.1) Misclassification Rate of each Digit's Binary Classifier")
+    plt.xlabel('classifier digit')
+    plt.ylabel('error rate (%)')
+    plt.gca().set_xticks(range(num_digits))
 
-    # print()
-    # im_nums=[738,18,92,47,1,99,1932,267,1345,1234,111,1111,897,777,0]
-    # for im_num in im_nums:
-    #     print(y_test[im_num])
-    #     for clf in perceptron_list:
-    #         print(clf.predict(x_test[im_num].reshape(1,-1)))
+    # print results
+    print("\n(2.1) Misclassification Rate (%) of each Binary Classifier:")
+    for id in range(num_digits):
+        print("Digit %d:  %.2f" % (id,test_error_list[id]))
+    print()
+    
+    # compute classification errors on test dataset for combined 10-way model (model predicition = class of sub-classifier (one for each digit) with highest confidence)
+    y_pred = list()
+    print("Computing test error of combined 10-way model...")
+    for id,test_im in enumerate(x_test):
+        decision_fn_vals = [clf.decision_function(test_im.reshape(1,-1))[0] for clf in perceptron_list]
+        y_pred_id = np.argmax(decision_fn_vals)
+        y_pred.append(y_pred_id)
+    num_error = sum([1 for id,y_val in enumerate(y_test) if y_pred[id] != y_val])
+    num_success = sum([1 for id,y_val in enumerate(y_test) if y_pred[id] == y_val])
+    misclass_rate = num_error*100.0/(1.0*num_test_samples) # error percentage
+    # success_rate = num_success*100.0/(1.0*num_test_samples)
+    
+    # print results
+    print("\n(2.2) 10-Way Model Performance on Test Set:")
+    print("Erroneous classifications:   %d" % num_error)
+    print("Successful classifications:  %d" % num_success)
+    print("Misclassification rate (%%):  %.1f\n" % misclass_rate)
+
+    # display plot
+    plt.show()
+
 
 
 if __name__ == "__main__":
