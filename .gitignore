@@ -1,6 +1,7 @@
 # ignore everything but what's inside /Homework/
 *
 !*/
+!README.md
 !.gitignore
 !/Homework/**
 
