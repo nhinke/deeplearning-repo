@@ -4,6 +4,7 @@
 !README.md
 !.gitignore
 !/Homework/**
+!/Paper-Reviews/**
 
 # ignore .vscode files
 *.vscode
