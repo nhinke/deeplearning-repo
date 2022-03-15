@@ -1,18 +1,17 @@
 # Nick Hinke
 # 520.638 Deep Learning
-# Homework 2 - Problem 2
+# Homework 2 - Problem 3
 #
-# Train and test 10 perceptron classifiers on the MNIST handwritten digit dataset (using the first 20k training samples and 2k test samples)
-# The 'i-th' percecptron in the model will perform binary classification to determine whether or not the sample is an instance of digit 'i'
-# The 10 perceptrons will then be combined into a single 10-way model that outputs the class of whichever sub-binary-classifier is most confident
+# Train and test 10 logistic regression classifiers on the MNIST handwritten digit dataset (using the first 20k training samples and 2k test samples)
+# The 'i-th' classifier in the model will perform binary classification to determine whether or not the sample is an instance of digit 'i'
+# The 10 classifiers will then be combined into a single 10-way model that outputs the class of whichever sub-binary-classifier is most confident
 #
 
 # import relevant libraries
 import gzip
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.linear_model import Perceptron
-# from sklearn.linear_model import SGDClassifier
+from sklearn.linear_model import LogisticRegression
 
 # function to extract datasets and labels as numpy arrays from the four .gz folders available at http://yann.lecun.com/exdb/mnist/
 def get_datasets_from_gz_folders(im_size, num_test, num_train):
@@ -61,7 +60,7 @@ def main():
 
     # get datasets as numpy arrays with the following shapes: {x_train,y_train} = {(num_training_samples,784),(num_training_samples,)} and {x_test,y_test} = {(num_test_samples,784),(num_test_samples,)}
     x_train, y_train, x_test, y_test = get_datasets_from_gz_folders(image_size, num_test_samples, num_training_samples)
-    
+
     # reshape images from row vectors to 28x28 matrices for visualization purposes (e.g. plt.imshow(x_test_images[image_index]))
     x_test_images = x_test.reshape(num_test_samples, image_size, image_size, 1)
     x_train_images = x_train.reshape(num_training_samples, image_size, image_size, 1)
@@ -70,19 +69,18 @@ def main():
     x_test = np.hstack((np.ones(shape=(num_test_samples,1)),x_test))
     x_train = np.hstack((np.ones(shape=(num_training_samples,1)),x_train))
 
-    # train 10 binary classifiers (using perceptrons) where the i-th classifier predicts whether or not the digit in the image = i
+    # train 10 binary classifiers (using logistic regression) where the i-th classifier predicts whether or not the digit in the image = i
     num_digits = 10
-    perceptron_list = list()
+    classifier_list = list()
     for id in range(num_digits):
         y_train_id = [1 if yi == id else 0 for yi in y_train]
-        perceptron_list.append(Perceptron(fit_intercept=True).fit(x_train,y_train_id))
-        # perceptron_list.append(SGDClassifier(loss="perceptron", eta0=1, learning_rate="constant", penalty=None).fit(x_train,y_train_id)) // exactly equivalent to Perceptron class used above
+        classifier_list.append(LogisticRegression(fit_intercept=True).fit(x_train,y_train_id))
         print("Done with training classifier for digit " + str(id) + "...")
 
     # compute classification errors on test dataset for each binary classifier
     test_error_list = list()
     print("Computing test error for each binary classifer individually...")
-    for id,clf in enumerate(perceptron_list):
+    for id,clf in enumerate(classifier_list):
         y_test_id = [1 if yi == id else 0 for yi in y_test]
         y_pred = clf.predict(x_test)
         misclass_rate = sum([1 for id,y_val in enumerate(y_test_id) if y_pred[id] != y_val])*100.0/(1.0*num_test_samples) # error percentage
@@ -91,13 +89,13 @@ def main():
     # plot test errors for each binary classifier
     plt.figure()
     plt.bar(range(num_digits),test_error_list)
-    plt.title("(2.1) Misclassification Rate of each Digit's Binary Classifier (Perceptrons)")
+    plt.title("(3.1) Misclassification Rate of each Digit's Binary Classifier (Logistic Regression)")
     plt.xlabel('classifier digit')
     plt.ylabel('error rate (%)')
     plt.gca().set_xticks(range(num_digits))
 
     # print results
-    print("\n(2.1) Misclassification Rate (%) of each Binary Classifier (Perceptrons):")
+    print("\n(3.1) Misclassification Rate (%) of each Binary Classifier (Logistic Regression):")
     for id in range(num_digits):
         print("Digit %d:  %.2f" % (id,test_error_list[id]))
     print()
@@ -106,8 +104,10 @@ def main():
     y_pred = list()
     print("Computing test error of combined 10-way model...")
     for id,test_im in enumerate(x_test):
-        decision_fn_vals = [clf.decision_function(test_im.reshape(1,-1))[0] for clf in perceptron_list]
-        y_pred_id = np.argmax(decision_fn_vals)
+        # decision_fn_vals = [clf.decision_function(test_im.reshape(1,-1))[0] for clf in classifier_list]
+        # y_pred_id = np.argmax(decision_fn_vals)
+        pos_class_probability_vals = [clf.predict_proba(test_im.reshape(1,-1))[0][1] for clf in classifier_list]
+        y_pred_id = np.argmax(pos_class_probability_vals)
         y_pred.append(y_pred_id)
     num_error = sum([1 for id,y_val in enumerate(y_test) if y_pred[id] != y_val])
     num_success = sum([1 for id,y_val in enumerate(y_test) if y_pred[id] == y_val])
@@ -115,7 +115,7 @@ def main():
     # success_rate = num_success*100.0/(1.0*num_test_samples)
     
     # print results
-    print("\n(2.2) 10-Way Model Performance on Test Set (Perceptrons):")
+    print("\n(3.2) 10-Way Model Performance on Test Set (Logistic Regression):")
     print("Erroneous classifications:   %d" % num_error)
     print("Successful classifications:  %d" % num_success)
     print("Misclassification rate (%%):  %.1f\n" % misclass_rate)
@@ -126,4 +126,4 @@ def main():
 
 
 if __name__ == "__main__":
-	main()
+    main()
