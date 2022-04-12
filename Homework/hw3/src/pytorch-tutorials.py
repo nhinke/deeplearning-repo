@@ -174,7 +174,7 @@ def main():
 
     elif (NUM_EXAMPLE_TO_RUN == 2):
 
-        FORCE_RETRAIN_NETWORK = False
+        FORCE_RETRAIN_NETWORK = True
         network_param_path = '/home/nhinke/Documents/JHU/Robotics-MSE/S22/DL/Coursework/Homework/hw3/data/cifar_network.pth'
         
         # torchvision.transforms contains many common image transformations 
