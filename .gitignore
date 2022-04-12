@@ -12,3 +12,13 @@
 
 # ignore .zip compressed folders
 *.zip
+
+# ignore .gz compressed folders
+*.gz
+
+# ignore data batches
+*batches-py
+*lfw-py
+
+# ignore .pth files
+*.pth
