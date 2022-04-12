@@ -2,7 +2,7 @@
 # 520.638 Deep Learning
 # PyTorch Tutorials
 #
-# Adapted from PyTorch tutorials done in class 
+# Adapted from PyTorch tutorials done during lecture 
 #
 
 import psutil
