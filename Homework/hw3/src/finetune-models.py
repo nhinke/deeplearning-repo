@@ -2,7 +2,7 @@
 # 520.638 Deep Learning
 # Homework 3 - Problem 2
 #
-# Script used to fine-tune AlexNet or VGG16 pre-trained model for verification task on LFW dataset
+# Script used to fine-tune (train) AlexNet or VGG-16 pre-trained model for verification task on LFW dataset
 # Script will save resulting model state_dict to location specified by 'NETWORK_PARAM_DIRECTORY'
 #
 
@@ -74,7 +74,7 @@ def main():
         model_str = 'AlexNet'
     elif (USE_VGG16):
         model = models.vgg16(pretrained=True)
-        model_str = 'VGG16'
+        model_str = 'VGG-16'
 
     # define proper image transformations
     transform = transforms.Compose([transforms.Resize(256), 

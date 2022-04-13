@@ -3,7 +3,7 @@
 # Homework 3 - Problem 2
 #
 # Script used to test model performance on verification task using LFW dataset
-# Script will load pre-trained AlexNet or VGG16 model, or fine-tuned AlexNet or VGG16 model as specified by 'WITH_FINE_TUNING'
+# Script will load pre-trained AlexNet or VGG-16 model, or fine-tuned AlexNet or VGG-16 model as specified by 'WITH_FINE_TUNING'
 # Please refer to finetune-models.py script for details regarding process of fine-tuning the pre-trained models, or to actually fine-tune and save the model parameters as needed
 #
 
@@ -49,10 +49,10 @@ def main():
 
     USE_CPU = False
 
-    USE_VGG16 = True
+    USE_VGG16 = False
     USE_ALEXNET = not USE_VGG16
 
-    USE_LFWPAIRS_DATASET = True
+    USE_LFWPAIRS_DATASET = False
     USE_LFWPEOPLE_DATASET = not USE_LFWPAIRS_DATASET
 
     DATASET_DIRECTORY = '/home/nhinke/Documents/JHU/Robotics-MSE/S22/DL/Coursework/Homework/hw3/data'
@@ -105,12 +105,12 @@ def main():
             except:
                 print(f"Error: please ensure finetuned VGG16 model saved at '{NETWORK_PARAM_DIRECTORY}/vgg16-finetuned.pth'")
                 quit()
-            plot_title = 'VGG16 (with Fine-Tuning)'
-            model_str = 'fine-tuned VGG16'
+            plot_title = 'VGG-16 (with Fine-Tuning)'
+            model_str = 'fine-tuned VGG-16'
         else:
             model = models.vgg16(pretrained=True)
-            plot_title = 'VGG16 (without Fine-Tuning)'
-            model_str = 'pre-trained VGG16'
+            plot_title = 'VGG-16 (without Fine-Tuning)'
+            model_str = 'pre-trained VGG-16'
 
     # define proper image transformations
     transform = transforms.Compose([transforms.Resize(256), 
