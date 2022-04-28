@@ -4,6 +4,9 @@ import torch
 import MCVmetrics
 import MCVencoding
 
+import kenlm
+import ctcdecode
+
 class SequenceWise(torch.nn.Module):
     def __init__(self, module):
         """
@@ -96,6 +99,8 @@ class TrainingSoftmax(torch.nn.Module):
 
 class DeepSpeech(torch.nn.Module):
 
+    kenlm_path = None
+
     lstm_dropout = 0.0
     lstm_hidden_size = 1024
     lstm_layers = 3
@@ -143,47 +148,21 @@ class DeepSpeech(torch.nn.Module):
             torch.nn.BatchNorm2d(32),
             torch.nn.Hardtanh(0, 20, inplace=True)
         ))
-        self.training_softmax = TrainingSoftmax()
-        self.inference_softmax = InferenceSoftmax()
-        self.validation_decoder = MCVencoding.EncoderDecoder()
         self.clf = torch.nn.Sequential(
             # torch.nn.LayerNorm(normalized_shape=self.lstm_hidden_size),
             # torch.nn.BatchNorm1d(self.lstm_hidden_size),
             torch.nn.Linear(in_features=self.lstm_hidden_size, out_features=self.num_classes, bias=False)
         )
         self.classifier = SequenceWise(self.clf)
+        self.training_softmax = TrainingSoftmax()
+        self.inference_softmax = InferenceSoftmax()
+        self.validation_decoder = MCVencoding.EncoderDecoder()
+        self.beam_decoder = ctcdecode.CTCBeamDecoder(labels=list("-abcdefghijklmnopqrstuvwxyz_"), blank_id=self.blank_label, log_probs_input=False, model_path=self.kenlm_path)
         self.criterion = torch.nn.CTCLoss(blank=self.blank_label, reduction='mean', zero_infinity=True)
         # self.optimizer = torch.optim.SGD(params=self.parameters(), lr=1e-3, momentum=0.9)
         self.optimizer = torch.optim.AdamW(params=self.parameters(), lr=self.adam_learning_rate, betas=self.adam_betas, eps=self.adam_eps, weight_decay=self.adam_weight_decay)
         # self.scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=self.optimizer, gamma=self.adam_learning_anneal)
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=0.2, patience=5)
-
-    def training_step(self, inputs, labels, input_lengths, label_lengths):
-        self.optimizer.zero_grad()
-        outputs,seq_lengths = self(inputs,input_lengths)
-        outputs_dec = self.inference_softmax(outputs)
-        outputs = self.training_softmax(outputs)
-        loss = self.criterion(outputs, labels, seq_lengths, label_lengths)
-        loss.backward()
-        self.optimizer.step()
-        return outputs_dec, loss
-
-    def validation_step(self, inputs, labels, input_lengths, label_lengths):
-        self.optimizer.zero_grad()
-        outputs,seq_lengths = self(inputs,input_lengths)
-        outputs_dec = self.inference_softmax(outputs)
-        outputs = self.training_softmax(outputs)
-        loss = self.criterion(outputs, labels, seq_lengths, label_lengths)
-        return outputs_dec, loss
-
-    def compute_evaluation_metrics(self, outputs, labels):
-        out_pred = self.validation_decoder.greedy_output_decoding(outputs)
-        out_true = self.validation_decoder.label_decoding(labels)
-        batch_wer, wer_ref_lens = MCVmetrics.batch_wer(out_true, out_pred, ignore_case=True)
-        batch_cer, cer_ref_lens = MCVmetrics.batch_cer(out_true, out_pred, ignore_case=True)
-        batch_wavg_wer = MCVmetrics.weighted_avg_wer(batch_wer, wer_ref_lens)
-        batch_wavg_cer = MCVmetrics.weighted_avg_cer(batch_cer, cer_ref_lens)
-        return batch_wavg_wer, batch_wavg_cer
 
     def forward(self, x, lengths):
         output_lengths = self.get_seq_lens(lengths)
@@ -210,6 +189,51 @@ class DeepSpeech(torch.nn.Module):
             if type(m) == torch.nn.modules.conv.Conv2d:
                 seq_len = ((seq_len + 2 * m.padding[1] - m.dilation[1] * (m.kernel_size[1] - 1) - 1) // m.stride[1] + 1)
         return seq_len.int()
+
+    def training_step(self, inputs, labels, input_lengths, label_lengths):
+        self.optimizer.zero_grad()
+        outputs,seq_lengths = self(inputs,input_lengths)
+        outputs_dec = self.inference_softmax(outputs)
+        outputs = self.training_softmax(outputs)
+        loss = self.criterion(outputs, labels, seq_lengths, label_lengths)
+        loss.backward()
+        self.optimizer.step()
+        return outputs_dec, loss
+
+    def validation_step(self, inputs, labels, input_lengths, label_lengths):
+        with torch.no_grad():
+            outputs,seq_lengths = self(inputs,input_lengths)
+            outputs_dec = self.inference_softmax(outputs)
+            outputs = self.training_softmax(outputs)
+            loss = self.criterion(outputs, labels, seq_lengths, label_lengths)
+        return outputs_dec, loss
+
+    def inference_step(self, inputs, input_lengths):
+        with torch.no_grad():
+            outputs, _ = self(inputs, input_lengths)
+            outputs_dec = self.inference_softmax(outputs)
+        return outputs_dec
+
+    def compute_evaluation_metrics(self, outputs, labels):
+        out_true = self.validation_decoder.label_decoding(labels)
+        out_pred = self.validation_decoder.greedy_output_decoding(outputs)
+        batch_wer, wer_ref_lens = MCVmetrics.batch_wer(out_true, out_pred, ignore_case=True)
+        batch_cer, cer_ref_lens = MCVmetrics.batch_cer(out_true, out_pred, ignore_case=True)
+        batch_wavg_wer = MCVmetrics.weighted_avg_wer(batch_wer, wer_ref_lens)
+        batch_wavg_cer = MCVmetrics.weighted_avg_cer(batch_cer, cer_ref_lens)
+        return batch_wavg_wer, batch_wavg_cer
+
+    def beam_decoding(self, outputs):
+        beam_results, _, _, out_lens = self.beam_decoder.decode(outputs)
+        beams = [beam_results[b][0][:out_lens[b][0]].tolist() for b in range(outputs.shape[0])]
+        output_str = self.validation_decoder.beam_decoding(beams, blank_label=self.blank_label)
+        return output_str
+    
+    def greedy_decoding(self, outputs):
+        return self.validation_decoder.greedy_output_decoding(outputs, blank_label=self.blank_label)
+
+    def label_decoding(self, labels):
+        return self.validation_decoder.label_decoding(labels, blank_label=self.blank_label)
 
     def load_saved_model(self):
         print(f'Loading model parameters from: {self.model_load_path}\n')

@@ -26,33 +26,37 @@ class EncoderDecoder:
 
         return integer_list
 
+    def beam_decoding(self, beams: List[List[int]], blank_label: int=27) -> List[str]:
+
+        label_strs = list()
+        for char_ints in beams:
+            label_strs.append(self.integer_decoding(char_ints, blank_label=blank_label))
+
+        return label_strs
+
     def label_decoding(self, labels: torch.Tensor, blank_label: int=27) -> List[str]:
 
         label_strs = list()
-
         for char_ints in labels.int().tolist():
             label_strs.append(self.integer_decoding(char_ints, blank_label=blank_label))
 
         return label_strs
 
-    def greedy_output_decoding(self, outputs: torch.Tensor, blank_int: int=27, remove_repetitions: bool=True) -> List[str]:
+    def greedy_output_decoding(self, outputs: torch.Tensor, blank_label: int=27, remove_repetitions: bool=True) -> List[str]:
 
-        
         output_strs = list()
-        # print(outputs.shape)        
-        # print(torch.argmax(outputs,dim=2).shape)
-        # print(torch.argmax(outputs,dim=2).squeeze(1).shape)
         char_arg_max = torch.argmax(outputs,dim=2).squeeze(1)
         for char_out in char_arg_max:
             prev_int = -1
             char_ints = list()
             for int in char_out:
-                if (int.item() != blank_int):
+                if (int.item() != blank_label):
                     if (remove_repetitions and int.item() == prev_int):
                         continue
                     char_ints.append(int.item())
                 prev_int = int.item()
             output_strs.append(self.integer_decoding(char_ints))
+
         return output_strs
 
     def integer_decoding(self, integer_list: List[int], blank_label: int=27) -> str:

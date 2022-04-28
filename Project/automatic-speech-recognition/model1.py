@@ -5,7 +5,12 @@ import torchaudio
 import MCVmetrics
 import MCVencoding
 
+import kenlm
+import ctcdecode
+
 class TorchDeepSpeech(torchaudio.models.DeepSpeech):
+
+    kenlm_path = None
 
     adam_learning_rate = 2.0e-6
     adam_betas = (0.9, 0.999)
@@ -22,6 +27,7 @@ class TorchDeepSpeech(torchaudio.models.DeepSpeech):
         self.model_save_path = self.abs_path+save_path_ext
         super(TorchDeepSpeech,self).__init__(n_feature=self.num_features,n_class=self.num_classes)
         self.validation_decoder = MCVencoding.EncoderDecoder()
+        self.beam_decoder = ctcdecode.CTCBeamDecoder(labels=list("-abcdefghijklmnopqrstuvwxyz_"), blank_id=self.blank_label, log_probs_input=False, model_path=self.kenlm_path)
         self.criterion = torch.nn.CTCLoss(blank=self.blank_label, reduction='mean', zero_infinity=True)
         # self.optimizer = torch.optim.SGD(params=self.parameters(), lr=1e-3, momentum=0.9)
         self.optimizer = torch.optim.AdamW(params=self.parameters(), lr=self.adam_learning_rate, betas=self.adam_betas, eps=self.adam_eps, weight_decay=self.adam_weight_decay)
@@ -37,11 +43,29 @@ class TorchDeepSpeech(torchaudio.models.DeepSpeech):
         return outputs, loss
 
     def validation_step(self, inputs, labels, input_lengths, label_lengths):
-        inputs = inputs.transpose(2,3)
-        self.optimizer.zero_grad()
-        outputs = self(inputs)
-        loss = self.criterion(outputs.transpose(0,1), labels, input_lengths, label_lengths)
+        with torch.no_grad():
+            inputs = inputs.transpose(2,3)
+            outputs = self(inputs)
+            loss = self.criterion(outputs.transpose(0,1), labels, input_lengths, label_lengths)
         return outputs, loss
+
+    def inference_step(self, inputs, input_lengths):
+        with torch.no_grad():
+            inputs = inputs.transpose(2,3)
+            outputs = self(inputs)
+        return outputs
+
+    def beam_decoding(self, outputs):
+        beam_results, _, _, out_lens = self.beam_decoder.decode(outputs)
+        beams = [beam_results[b][0][:out_lens[b][0]].tolist() for b in range(outputs.shape[0])]
+        output_str = self.validation_decoder.beam_decoding(beams, blank_label=self.blank_label)
+        return output_str
+    
+    def greedy_decoding(self, outputs):
+        return self.validation_decoder.greedy_output_decoding(outputs, blank_label=self.blank_label)
+
+    def label_decoding(self, labels):
+        return self.validation_decoder.label_decoding(labels, blank_label=self.blank_label)
 
     def compute_evaluation_metrics(self, outputs, labels):
         out_pred = self.validation_decoder.greedy_output_decoding(outputs)

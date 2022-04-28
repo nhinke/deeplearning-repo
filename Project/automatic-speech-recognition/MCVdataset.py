@@ -43,10 +43,7 @@ def resample_audio(signal: torch.Tensor, sample_rate: int, new_sample_rate: int)
 
 
 def make_mel_spectrogram_db(signal: torch.Tensor, sample_rate: int, n_mels: int=64, n_fft: int=1024, top_db: int=80) -> torch.Tensor:
-
-    spec = torchaudio.transforms.AmplitudeToDB(top_db=top_db)(torchaudio.transforms.MelSpectrogram(sample_rate,n_fft=n_fft,n_mels=n_mels)(signal))
-
-    return spec
+    return torchaudio.transforms.AmplitudeToDB(top_db=top_db)(torchaudio.transforms.MelSpectrogram(sample_rate,n_fft=n_fft,n_mels=n_mels)(signal))
 
 
 def perform_spec_augmentation(spec_in: torch.Tensor, prob_augment: float=0.5, max_mask_pct: float=0.1, n_freq_masks: int=1, n_time_masks: int=1) -> torch.Tensor:
@@ -67,17 +64,15 @@ def perform_spec_augmentation(spec_in: torch.Tensor, prob_augment: float=0.5, ma
     return spec_out
 
 
-class SpecAugment(torch.nn.Module):
-
-    def __init__(self, freq_mask=10, time_mask=10):
-        super(SpecAugment, self).__init__()
-        self.augment = torch.nn.Sequential(
-            torchaudio.transforms.FrequencyMasking(freq_mask_param=freq_mask),
-            torchaudio.transforms.TimeMasking(time_mask_param=time_mask)
-        )
-
-    def forward(self,spec):
-        return self.augment(spec)
+# class SpecAugment(torch.nn.Module):
+#     def __init__(self, freq_mask=10, time_mask=10):
+#         super(SpecAugment, self).__init__()
+#         self.augment = torch.nn.Sequential(
+#             torchaudio.transforms.FrequencyMasking(freq_mask_param=freq_mask),
+#             torchaudio.transforms.TimeMasking(time_mask_param=time_mask)
+#         )
+#     def forward(self,spec):
+#         return self.augment(spec)
 
 
 class MozillaCommonVoiceDataset(torch.utils.data.Dataset):
@@ -106,7 +101,6 @@ class MozillaCommonVoiceDataset(torch.utils.data.Dataset):
 
         self.augment = augment
         self.resample = resample_audio
-        # self.spec_aug = SpecAugment()
         self.EncDec = EncoderDecoder()
 
         # Get string representation of 'root' in case Path object is passed
@@ -129,7 +123,7 @@ class MozillaCommonVoiceDataset(torch.utils.data.Dataset):
             is built from the TSV file with the following keys: ``client_id``, ``path``, ``sentence``,
             ``up_votes``, ``down_votes``, ``age``, ``gender`` and ``accent``.
         """
-
+        
         # load sample from dataset
         line = self._walker[n]
         try:
@@ -141,7 +135,7 @@ class MozillaCommonVoiceDataset(torch.utils.data.Dataset):
         # resample audio signals to all have the same sample rate (unnecessary since all CV audio files already have sample rate of 48000)
         if (self.resample):
             waveform, sample_rate = resample_audio(waveform, sample_rate, self.std_sample_rate)
-        
+
         # add sample rate to metadata
         metadata['sample rate'] = sample_rate
         
@@ -161,11 +155,12 @@ class MozillaCommonVoiceDataset(torch.utils.data.Dataset):
         # perform time and frequency masking on mel spectrogram
         if (self.augment):
             # mel_spec = self.spec_aug(mel_spec)
-            # mel_spec = perform_spec_augmentation(mel_spec)
             mel_spec = perform_spec_augmentation(mel_spec, prob_augment=0.75, max_mask_pct=0.1, n_freq_masks=2, n_time_masks=2)
 
-        metadata['label'] = self.EncDec.integer_encoding(metadata['sentence'])
-        # metadata['label2'] = self.EncDec.integer_decoding(metadata['label'])
+        try:
+            metadata['label'] = self.EncDec.integer_encoding(metadata['sentence'])
+        except Exception:
+            return self.__getitem__(n-1 if n != 0 else n+1)
 
         return mel_spec, metadata
 

@@ -3,7 +3,8 @@ import torch
 import MCVmetrics
 import MCVencoding
 
-# TODO turn off dropout during inference?
+import kenlm
+import ctcdecode
 
 class RNN(torch.nn.Module):
     def __init__(self, input_size, num_layers, hidden_size, dropout, blank_label=27, bidirectional=True):
@@ -58,6 +59,8 @@ class TrainingSoftmax(torch.nn.Module):
 
 
 class ASR(torch.nn.Module):
+
+    kenlm_path = None
 
     lstm_dropout = 0.2
     lstm_hidden_size = 1024
@@ -116,9 +119,36 @@ class ASR(torch.nn.Module):
         self.training_softmax = TrainingSoftmax()
         self.inference_softmax = InferenceSoftmax()
         self.validation_decoder = MCVencoding.EncoderDecoder()
+        self.beam_decoder = ctcdecode.CTCBeamDecoder(labels=list("-abcdefghijklmnopqrstuvwxyz_"), blank_id=self.blank_label, log_probs_input=False, model_path=self.kenlm_path)
         self.criterion = torch.nn.CTCLoss(blank=self.blank_label, reduction='mean', zero_infinity=True)
         self.optimizer = torch.optim.AdamW(params=self.parameters(), lr=self.adam_learning_rate, betas=self.adam_betas, eps=self.adam_eps, weight_decay=self.adam_weight_decay)
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=0.2, patience=5)
+
+    def forward(self, x, input_lengths):
+        output_lengths = self.get_seq_lens(input_lengths)
+        x = self.cnn(x)
+        sizes = x.size()
+        x = x.view(sizes[0], sizes[1]*sizes[2], sizes[3])
+        x = x.transpose(1,2).transpose(0,1).contiguous() 
+        x = self.linear(x)
+        x = self.lstm(x,output_lengths)
+        # x = x.transpose(0, 1)
+        x = self.classifier(x)
+        x = x.transpose(0, 1)
+        return x, output_lengths
+
+    def get_seq_lens(self, input_length):
+        """
+        Given a 1D Tensor or Variable containing integer sequence lengths, return a 1D tensor or variable
+        containing the size sequences that will be output by the network.
+        :param input_length: 1D Tensor
+        :return: 1D Tensor scaled by model
+        """
+        seq_len = input_length
+        for m in self.cnn.modules():
+            if type(m) == torch.nn.modules.conv.Conv2d:
+                seq_len = ((seq_len + 2 * m.padding[1] - m.dilation[1] * (m.kernel_size[1] - 1) - 1) // m.stride[1] + 1)
+        return seq_len.int()
 
     def training_step(self, inputs, labels, input_lengths, label_lengths):
         self.optimizer.zero_grad()
@@ -131,12 +161,18 @@ class ASR(torch.nn.Module):
         return outputs_dec, loss
 
     def validation_step(self, inputs, labels, input_lengths, label_lengths):
-        self.optimizer.zero_grad()
-        outputs,seq_lengths = self(inputs,input_lengths)
-        outputs_dec = self.inference_softmax(outputs)
-        outputs = self.training_softmax(outputs)
-        loss = self.criterion(outputs, labels, seq_lengths, label_lengths)
+        with torch.no_grad():
+            outputs,seq_lengths = self(inputs,input_lengths)
+            outputs_dec = self.inference_softmax(outputs)
+            outputs = self.training_softmax(outputs)
+            loss = self.criterion(outputs, labels, seq_lengths, label_lengths)
         return outputs_dec, loss
+
+    def inference_step(self, inputs, input_lengths):
+        with torch.no_grad():
+            outputs, _ = self(inputs, input_lengths)
+            outputs_dec = self.inference_softmax(outputs)
+        return outputs_dec
 
     def compute_evaluation_metrics(self, outputs, labels):
         out_true = self.validation_decoder.label_decoding(labels)
@@ -146,71 +182,18 @@ class ASR(torch.nn.Module):
         batch_wavg_wer = MCVmetrics.weighted_avg_wer(batch_wer, wer_ref_lens)
         batch_wavg_cer = MCVmetrics.weighted_avg_cer(batch_cer, cer_ref_lens)
         return batch_wavg_wer, batch_wavg_cer
+
+    def beam_decoding(self, outputs):
+        beam_results, _, _, out_lens = self.beam_decoder.decode(outputs)
+        beams = [beam_results[b][0][:out_lens[b][0]].tolist() for b in range(outputs.shape[0])]
+        output_str = self.validation_decoder.beam_decoding(beams, blank_label=self.blank_label)
+        return output_str
     
-    # def forward(self, x, lengths):
-        # output_lengths = self.get_seq_lens(lengths)
-        # # print('\nforward:')
-        # # print(f'before: {x.shape}')
-        # # x = self.cnn(x)
-        # x = self.cnn(x,output_lengths)
+    def greedy_decoding(self, outputs):
+        return self.validation_decoder.greedy_output_decoding(outputs, blank_label=self.blank_label)
 
-        # print(f'after cnn: {x.shape}')
-        # sizes = x.size()
-        # x = x.view(sizes[0], sizes[1] * sizes[2], sizes[3])  # Collapse feature dimension
-        # x = x.transpose(1, 2).transpose(0, 1).contiguous() 
-        # print(f'after cnn2: {x.shape}')
-        # # x = self.linear(x)
-        # # print(f'after linear: {x.shape}')
-        # # x,_ = self.lstm(x,output_lengths)
-        # for rnn in self.rnns:
-        #     x = rnn(x, output_lengths)
-        # # print(f'after rnn: {x.shape}')
-        # # x = x.transpose(0, 1)
-        # x = self.classifier2(x)
-        # x = x.transpose(0, 1)
-
-        # # print(f'after clf: {x.shape}')
-        # return x, output_lengths
-
-    def forward(self, x, input_lengths):
-        output_lengths = self.get_seq_lens(input_lengths)
-        # print(output_lengths)
-        # print('\nforward:')
-        # print(f'before: {x.shape}')
-        x = self.cnn(x)
-        # print(f'after cnn: {x.shape}')
-        sizes = x.size()
-        x = x.view(sizes[0], sizes[1]*sizes[2], sizes[3])
-        x = x.transpose(1,2).transpose(0,1).contiguous() 
-        # print(f'after cnn2: {x.shape}')
-        x = self.linear(x)
-        # print(f'after linear: {x.shape}')
-        x = self.lstm(x,output_lengths)
-        # print(f'after rnn: {x.shape}')
-        # x = x.transpose(0, 1)
-        x = self.classifier(x)
-        x = x.transpose(0, 1)
-        # print(f'after clf: {x.shape}')
-        return x, output_lengths
-
-    # def _init_hidden(self, batch_size):
-    #     n, hs = self.num_layers, self.hidden_size
-    #     return (torch.zeros(self.lstm_layers, batch_size, self.hidden_size),torch.zeros(self.lstm_layers, batch_size, self.hidden_size))
-
-    def get_seq_lens(self, input_length):
-        """
-        Given a 1D Tensor or Variable containing integer sequence lengths, return a 1D tensor or variable
-        containing the size sequences that will be output by the network.
-        :param input_length: 1D Tensor
-        :return: 1D Tensor scaled by model
-        """
-        # print(input_length)
-        seq_len = input_length
-        for m in self.cnn.modules():
-            if type(m) == torch.nn.modules.conv.Conv2d:
-                seq_len = ((seq_len + 2 * m.padding[1] - m.dilation[1] * (m.kernel_size[1] - 1) - 1) // m.stride[1] + 1)
-        # print(seq_len.int())
-        return seq_len.int()
+    def label_decoding(self, labels):
+        return self.validation_decoder.label_decoding(labels, blank_label=self.blank_label)
 
     def load_saved_model(self):
         print(f'Loading model parameters from: {self.model_load_path}\n')
