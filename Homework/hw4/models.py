@@ -2,7 +2,7 @@
 # 520.638 Deep Learning
 # Homework 4
 #
-# Define 'Autoencoder' class used for both the regular and denoising autoencoders in homework 4
+# Defines 'Autoencoder' class used for both the regular and denoising autoencoders in homework 4
 #
 
 import torch
