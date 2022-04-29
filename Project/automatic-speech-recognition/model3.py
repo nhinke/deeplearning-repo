@@ -74,7 +74,7 @@ class ASR(torch.nn.Module):
     adam_learning_anneal = 0.99
     abs_path = '/home/nhinke/Documents/JHU/Robotics-MSE/S22/DL/Coursework/Project/automatic-speech-recognition/model-params/'
 
-    def __init__(self, num_features=64, num_classes=28, blank_label=27, load_path_ext='asr-ASR.pth',save_path_ext='asr-ASR.pth'):
+    def __init__(self, num_features=64, num_classes=28, blank_label=27, load_path_ext='asr-ASR.pth', save_path_ext='asr-ASR.pth'):
         self.num_classes = num_classes
         self.num_features = num_features
         self.blank_label = blank_label
