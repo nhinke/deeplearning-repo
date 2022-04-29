@@ -1,8 +1,8 @@
 ## 520.638 - Deep Learning
-### Homework 4 - TODO
+### Homework 4 - Using Autoencoders for Image Reconstruction on CIFAR10 Dataset
 <br>
-In the src directory, there are TODO files of note: <br>
-1. problem2.py         --  script to evaluate performance of selected model (pre-trained or fine-tuned) <br>
-2. finetune-models.py  --  script to fine-tune (train) pre-trained version of selected model for verification on LFW dataset, and save resulting model parameters <br>
-3. pytorch-tutorials.py  --  script containing PyTorch example completed in class <br>
+In the src directory, there are three files of note: <br>
+1. models.py  --  script that defines the 'Autoencoder' class that is used for both the regular and denoising autoencoder <br>
+2. train.py   --  script to train both autoencoders on the CIFAR10 training dataset and save the resulting model parameters <br>
+3. test.py    --  script to evaluate and visualize both trained autoencoders using the CIFAR10 test dataset <br>
 
