@@ -147,13 +147,11 @@ def plot_metrics_from_logs(train_log, valid_log, on_same_plot=False):
 
 def main():
 
-    # for plotting: current iteration = epoch*(dataset_size/batch_size)+iter
-    #   since (dataset_size/batch_size) = iter per epoch
-
-    num_epochs = 1
-    valid_batch_size = 8
+    num_epochs = 6
+    valid_batch_size = 12
     train_batch_size = 12
     perform_validation = True
+    percent_of_validation_set_to_use = 0.1
 
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     print(f'\nDevice to be used during training: {device}')
@@ -182,7 +180,7 @@ def main():
     # print(ds_valid_len)
 
     train_loader = MozillaCommonVoiceDataLoader(ds_train, batch_size=train_batch_size, shuffle=True, num_workers=4)
-    valid_loader = MozillaCommonVoiceDataLoader(ds_valid, batch_size=valid_batch_size, shuffle=True, num_workers=4)
+    valid_loader = MozillaCommonVoiceDataLoader(ds_valid, batch_size=valid_batch_size, shuffle=False, num_workers=4)
 
     model = ASR()
     # model = ASR(load_path_ext='asr-ten.pth',save_path_ext='asr-ten.pth') # overfit to ten batches
@@ -190,7 +188,7 @@ def main():
     model.to(device)
     model.train()
 
-    print_examples = True
+    print_examples = False
     if (print_examples):
         model.eval()
         for id,data in enumerate(valid_loader): 
@@ -215,11 +213,13 @@ def main():
         quit()
 
 
+    num_validation_batches = round(1.0*ds_valid_len*percent_of_validation_set_to_use/valid_batch_size)
 
 
     epoch_times = list()
     start_time = time.time()
     for epoch in range(num_epochs):
+        CTCloss = 0.0
         running_loss = 0.0
         start_ep_time = time.time()
         for id,data in enumerate(train_loader):
@@ -236,34 +236,43 @@ def main():
             if (id % 100 == 99):   
                 CTCloss = running_loss/100.0
                 batch_avg_wer, batch_avg_cer = model.compute_evaluation_metrics(outputs, labels)
-                print(f'[{epoch+1},{id+1}] Training: ( CTC loss = {CTCloss:.3f} , WER = {batch_avg_wer:.3f} , CER = {batch_avg_cer:.3f} )')
+                print(f'[{epoch+1},{id+1}] Training:   ( CTC loss = {CTCloss:.3f} , WER = {batch_avg_wer:.3f} , CER = {batch_avg_cer:.3f} )')
                 write_loss_to_log(log_training_loss, logs_header, curr_training_seq, starting_epoch+epoch, train_batch_size, ds_train_len, id, CTCloss, batch_avg_wer, batch_avg_cer)
                 running_loss = 0.0
 
-        if (perform_validation):
-            model.eval()
-            running_loss = 0.0
-            validation_losses = list()
-            for id,data in enumerate(valid_loader): 
-                inputs, labels, input_lengths, label_lengths = data
-                inputs = inputs.to(device)
-                labels = labels.to(device)
-                # input_lengths = input_lengths.to(device)
-                # label_lengths = label_lengths.to(device)
-
-                outputs, loss = model.validation_step(inputs, labels, input_lengths, label_lengths)
-
-                running_loss += loss.item()
-                if (id % 100 == 99):   
-                    CTCloss = running_loss/100.0
-                    validation_losses.append(CTCloss)
-                    batch_avg_wer, batch_avg_cer = model.compute_evaluation_metrics(outputs, labels)
-                    print(f'[{epoch+1},{id+1}] Validation: ( CTC loss = {CTCloss:.3f} , WER = {batch_avg_wer:.3f} , CER = {batch_avg_cer:.3f} )')
-                    write_loss_to_log(log_validation_loss, logs_header, curr_training_seq, starting_epoch+epoch, valid_batch_size, ds_valid_len, id, CTCloss, batch_avg_wer, batch_avg_cer)
+                if (perform_validation):
+                    model.eval()
                     running_loss = 0.0
-            model.train()
-            avg_validation_loss = float(np.mean(validation_losses))
-            model.scheduler.step(avg_validation_loss)
+                    avg_wer_list = list()
+                    avg_cer_list = list()
+                    # validation_losses = list()
+                    for id_val,data in enumerate(valid_loader): 
+                        inputs, labels, input_lengths, label_lengths = data
+                        inputs = inputs.to(device)
+                        labels = labels.to(device)
+                        # input_lengths = input_lengths.to(device)
+                        # label_lengths = label_lengths.to(device)
+
+                        outputs, loss = model.validation_step(inputs, labels, input_lengths, label_lengths)
+
+                        running_loss += loss.item()
+
+                        batch_avg_wer, batch_avg_cer = model.compute_evaluation_metrics(outputs, labels)
+                        avg_wer_list.append(batch_avg_wer)
+                        avg_cer_list.append(batch_avg_cer)
+
+                        if (id_val >= num_validation_batches):
+                            break
+
+                    val_avg_wer = np.mean(avg_wer_list)
+                    val_avg_cer = np.mean(avg_cer_list)
+                    CTCloss = running_loss/(1.0*(num_validation_batches-1.0))
+                    print(f'[{epoch+1},{id+1}] Validation: ( CTC loss = {CTCloss:.3f} , WER = {val_avg_wer:.3f} , CER = {val_avg_cer:.3f} )')
+                    write_loss_to_log(log_validation_loss, logs_header, curr_training_seq, starting_epoch+epoch, valid_batch_size, ds_valid_len, id, CTCloss, val_avg_wer, val_avg_cer)
+                    running_loss = 0.0
+
+                    model.train()
+                    model.scheduler.step(CTCloss)
 
         epoch_times.append(time.time()-start_ep_time)
         print(f'EPOCH {epoch+1}/{num_epochs} COMPLETE (took {epoch_times[-1]:.1f} seconds)...\n')
