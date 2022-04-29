@@ -1,3 +1,10 @@
+# Nick Hinke
+# 520.638 Deep Learning
+# Homework 4
+#
+# Define 'Autoencoder' class used for both the regular and denoising autoencoders in homework 4
+#
+
 import torch
 
 class Encoder(torch.nn.Module):
@@ -92,6 +99,13 @@ class AutoEncoder(torch.nn.Module):
 
     # 'inputs' and 'true_inputs' are the same for regular autoencoder, but 'inputs' are noisy inputs for denoising autoencoder
     def validation_step(self, inputs, true_inputs):
+        with torch.no_grad():
+            outputs = self(inputs)
+            loss = self.criterion(outputs, true_inputs)
+        return outputs, loss
+
+    # 'inputs' and 'true_inputs' are the same for regular autoencoder, but 'inputs' are noisy inputs for denoising autoencoder
+    def testing_step(self, inputs, true_inputs):
         with torch.no_grad():
             outputs = self(inputs)
             loss = self.criterion(outputs, true_inputs)

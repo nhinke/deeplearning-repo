@@ -1,10 +1,16 @@
-import time
-import numpy as np
-import matplotlib.pyplot as plt
+# Nick Hinke
+# 520.638 Deep Learning
+# Homework 4
+#
+# Script to train both the regular and denoising autoencoders on the CIFAR10 training dataset (50k images)
+#
 
+# import relevant libraries
+import time
 import torch
-import torchvision
 import models
+import torchvision
+import matplotlib.pyplot as plt
 
 def main():
     
@@ -21,8 +27,12 @@ def main():
     # construct models to be trained
     model_ae = models.AutoEncoder(sgd_optim=False, learning_rate=1e-4, model_path=model_ae_path)
     model_denoising_ae = models.AutoEncoder(sgd_optim=False, learning_rate=1e-4, model_path=model_denoising_ae_path)
-    # print(model_ae)
-    # print(model_denoising_ae)
+
+    # print model summaries
+    print('\n')
+    print(model_ae)
+    print('\n')
+    print(model_denoising_ae)
 
     # determine device on which to train network (GPU if possible)
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -70,6 +80,7 @@ def main():
     train_loss_denoising_ae = list()
     valid_loss_denoising_ae = list()
 
+    # train models
     epoch_times = list()
     start_time = time.time()
     for epoch in range(num_epochs):
@@ -142,6 +153,7 @@ def main():
     iterations.pop(0)
     print(f'Total elapsed time: {time.time()-start_time:.1f} seconds')
 
+    # save trained model parameters
     model_ae.save_model()
     model_denoising_ae.save_model()
 
