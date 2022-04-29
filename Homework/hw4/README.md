@@ -1,5 +1,5 @@
 ## 520.638 - Deep Learning
-### Homework 4 - Using Autoencoders for Image Reconstruction on CIFAR10 Dataset
+### Homework 4 - Using Autoencoders for Image Reconstruction on CIFAR-10 Dataset
 <br>
 In the src directory, there are three files of note: <br>
 1. models.py  --  script that defines the 'Autoencoder' class that is used for both the regular and denoising autoencoder <br>
