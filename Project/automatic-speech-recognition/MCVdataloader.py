@@ -1,25 +1,18 @@
-# from numpy import pad
 import torch
-# import torchaudio
-# import MCVdataset
+
+# portions adapted from Deep Speech available at https://github.com/SeanNaren/deepspeech.pytorch/tree/master/deepspeech_pytorch
+# portions adapted from https://github.com/LearnedVector/A-Hackers-AI-Voice-Assistant/blob/master/VoiceAssistant/speechrecognition/neuralnet/dataset.py
 
 def _collate_fn2(batch):
-    # def func(p):
-    #     return p[0].size(1)
 
     batch = sorted(batch, key=lambda sample: sample[0].size(2), reverse=True)
     batch2 = sorted(batch, key=lambda sample: len(sample[1]['label']), reverse=True)
-    # print(sample[0].shape)
-    # print(len(batch[0]))
     longest_sample = batch[0]
     longest_sample_label = batch2[0]
     freq_size = longest_sample[0].size(1)
-    # print(freq_size)
     minibatch_size = len(batch)
     max_seqlength = longest_sample[0].size(2)
     max_label_len = len(longest_sample_label[1]['label'])
-    # print(max_seqlength)
-    # print(max_label_len)
     inputs = torch.zeros(minibatch_size, 1, freq_size, max_seqlength)
     targets = torch.zeros(minibatch_size, max_label_len)
     input_sizes2 = torch.IntTensor(minibatch_size)
@@ -30,17 +23,9 @@ def _collate_fn2(batch):
         sample = batch[x]
         tensor = sample[0]
         target = sample[1]['label']
-        # print()
-        # print(tensor[0].shape)
         seq_length = tensor.size(2)
         label_length = len(target)
-        # print(inputs[x][0].shape)
-        # print(inputs[x][0].narrow(1,0,seq_length).shape)
-        # print(inputs[x][0].narrow(0,0,seq_length).shape)
-        # print(torch.IntTensor(target).shape)
-        # print(targets[x].shape)
         targets[x].narrow(0,0,label_length).copy_(torch.IntTensor(target))
-        # print(targets[x])
         inputs[x][0].narrow(1,0,seq_length).copy_(tensor[0])
         input_percentages[x] = seq_length / float(max_seqlength)
         input_sizes2[x] = seq_length
@@ -48,16 +33,12 @@ def _collate_fn2(batch):
         targets2.extend(target)
     targets2 = torch.tensor(targets2, dtype=torch.long)
     input_sizes = input_percentages.mul_(int(inputs.size(3))).int()
-    # print(target_sizes)
-    # print(input_sizes)
-    # print(input_sizes2)
-    # print(inputs.shape)
-    # print(targets.shape)
+
     return inputs, targets, input_sizes, target_sizes
 
 def _collate_fn(data):
     '''
-    Padds batch of variable length
+    Pads batch of variable length
     note: it converts things ToTensor manually here since the ToTensor transform
     assume it takes in images rather than arbitrary tensors.
     '''
@@ -68,10 +49,6 @@ def _collate_fn(data):
     for (spectrogram, label_meta) in data:
         if spectrogram is None:
             continue
-
-        # print(label['sentence'])
-        # print(list(label['sentence']))
-        # print(type(list(label['sentence'])))
         label = list(label_meta['label'])
         input_length = spectrogram.shape[-1]//2 # check that this is right
         input_length = spectrogram.shape[-1]
