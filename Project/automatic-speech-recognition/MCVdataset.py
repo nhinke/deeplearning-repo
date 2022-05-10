@@ -74,6 +74,30 @@ def perform_spec_augmentation(spec_in: torch.Tensor, prob_augment: float=0.5, ma
 #     def forward(self,spec):
 #         return self.augment(spec)
 
+class DataPreprocesser():
+
+    std_sample_rate = 48000
+    # min_sig_len_ms = 1500
+    # max_sig_len_ms = 7000
+    # min_sig_len = std_sample_rate//1000*min_sig_len_ms
+    # max_sig_len = std_sample_rate//1000*max_sig_len_ms
+
+    def __init__(self, augment: bool=False, resample_audio: bool=False) -> None:
+
+        self.augment = augment
+        self.resample = resample_audio
+
+    def get_mel_spectrogram(self, signal: torch.Tensor, sample_rate: int) -> torch.Tensor:
+
+        if (self.resample):
+            if (sample_rate != self.std_sample_rate):
+                signal, sample_rate = resample_audio(signal, sample_rate, self.std_sample_rate)
+        mel_spec = make_mel_spectrogram_db(signal, sample_rate)
+        if (self.augment):
+            mel_spec = perform_spec_augmentation(mel_spec, prob_augment=0.15, max_mask_pct=0.1, n_freq_masks=2, n_time_masks=2)
+
+        return mel_spec
+
 
 class MozillaCommonVoiceDataset(torch.utils.data.Dataset):
     """Create a Dataset for CommonVoice.
@@ -134,7 +158,8 @@ class MozillaCommonVoiceDataset(torch.utils.data.Dataset):
 
         # resample audio signals to all have the same sample rate (unnecessary since all CV audio files already have sample rate of 48000)
         if (self.resample):
-            waveform, sample_rate = resample_audio(waveform, sample_rate, self.std_sample_rate)
+            if (sample_rate != self.std_sample_rate):
+                waveform, sample_rate = resample_audio(waveform, sample_rate, self.std_sample_rate)
 
         # add sample rate to metadata
         metadata['sample rate'] = sample_rate
@@ -155,7 +180,8 @@ class MozillaCommonVoiceDataset(torch.utils.data.Dataset):
         # perform time and frequency masking on mel spectrogram
         if (self.augment):
             # mel_spec = self.spec_aug(mel_spec)
-            mel_spec = perform_spec_augmentation(mel_spec, prob_augment=0.75, max_mask_pct=0.1, n_freq_masks=2, n_time_masks=2)
+            # mel_spec = perform_spec_augmentation(mel_spec, prob_augment=0.75, max_mask_pct=0.1, n_freq_masks=2, n_time_masks=2)
+            mel_spec = perform_spec_augmentation(mel_spec, prob_augment=0.15, max_mask_pct=0.1, n_freq_masks=2, n_time_masks=2)
 
         try:
             metadata['label'] = self.EncDec.integer_encoding(metadata['sentence'])
