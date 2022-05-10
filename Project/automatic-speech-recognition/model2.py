@@ -1,4 +1,5 @@
 # based on DeepSpeech
+# Deep Speech implementation available at https://github.com/SeanNaren/deepspeech.pytorch/tree/master/deepspeech_pytorch
 
 import torch
 import MCVmetrics

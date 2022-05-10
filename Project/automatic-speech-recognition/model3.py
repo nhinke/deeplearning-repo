@@ -1,3 +1,5 @@
+# select portions based on Deep Speech
+# Deep Speech implementation available at https://github.com/SeanNaren/deepspeech.pytorch/tree/master/deepspeech_pytorch
 
 import torch
 import MCVmetrics
@@ -21,12 +23,6 @@ class RNN(torch.nn.Module):
     #     self.rnn.flatten_parameters()
 
     def forward(self, x, output_lengths):
-        # output_lengths = self.hidden_size
-        # print(output_lengths)
-        # if self.batch_norm is not None:
-        #     x = self.batch_norm(x)False
-        # x = nn.utils.rnn.pack_padded_sequence(x, output_lengths)
-        # print(x.shape)
         x = torch.nn.utils.rnn.pack_padded_sequence(x, output_lengths, batch_first=False)
         # print(x.shape)
         x, _ = self.rnn(x)
@@ -36,13 +32,7 @@ class RNN(torch.nn.Module):
         return x
 
     def forward2(self, x):
-        # output_lengths = self.hidden_size
-        # print(output_lengths)
-        # if self.batch_norm is not None:
-        #     x = self.batch_norm(x)
-        # x = nn.utils.rnn.pack_padded_sequence(x, output_lengths)
         x, h = self.rnn(x)
-        # x, _ = nn.utils.rnn.pad_packed_sequence(x)
         if self.bidirectional:
             x = x.view(x.size(0), x.size(1), 2, -1).sum(2).view(x.size(0), x.size(1), -1)  # (TxNxH*2) -> (TxNxH) by sum
         return x,h
@@ -60,14 +50,15 @@ class TrainingSoftmax(torch.nn.Module):
 
 class ASR(torch.nn.Module):
 
-    kenlm_path = None
+    kenlm_path = '/home/nhinke/Documents/JHU/Robotics-MSE/S22/DL/Coursework/Project/automatic-speech-recognition/kenlm/4gram_big.arpa'
+    # kenlm_path = '/home/nhinke/Documents/JHU/Robotics-MSE/S22/DL/Coursework/Project/automatic-speech-recognition/kenlm/4gram_small.arpa'
 
     lstm_dropout = 0.2
     lstm_hidden_size = 1024
     lstm_layers = 3
     lstm_bidirectional = True
 
-    adam_learning_rate = 2.5e-6
+    adam_learning_rate = 2.5e-5
     adam_betas = (0.9, 0.999)
     adam_eps = 1e-8
     adam_weight_decay = 1e-5
@@ -84,16 +75,12 @@ class ASR(torch.nn.Module):
         self.num_conv_features = 38*16
         self.cnn = torch.nn.Sequential(
             # shape = ( bs , 1 , 64 , length )
-            # torch.nn.Conv1d()
             torch.nn.Conv2d(in_channels=1, out_channels=4, kernel_size=5, stride=1, padding=5//1),
             torch.nn.ReLU(),
-            # shape = ( bs , 8 , 1+(64+2*padding1-dilation1*(kernel1-1)-1)/stride1 , 1+(length+2*padding1-dilation1*(kernel1-1)-1)/stride1 ) = ( bs , 8 , 62 , length - 2)
             torch.nn.Conv2d(in_channels=4, out_channels=8, kernel_size=5, stride=1, padding=5//1),
             torch.nn.ReLU(),
-            # shape = ( bs , 16 , 60 , length-4 )
             torch.nn.Conv2d(in_channels=8, out_channels=16, kernel_size=5, stride=2, padding=5//2),
             torch.nn.ReLU()
-            # shape = ( bs , 32 , 58 , length-6 )
         )
         self.linear = torch.nn.Sequential(
             # assuming padding1=padding2=0, kernel1=kernel2=3, dilation1=dilation2=dilation3=1
@@ -119,9 +106,11 @@ class ASR(torch.nn.Module):
         self.training_softmax = TrainingSoftmax()
         self.inference_softmax = InferenceSoftmax()
         self.validation_decoder = MCVencoding.EncoderDecoder()
-        self.beam_decoder = ctcdecode.CTCBeamDecoder(labels=list("-abcdefghijklmnopqrstuvwxyz_"), blank_id=self.blank_label, log_probs_input=False, model_path=self.kenlm_path)
+        # self.beam_decoder = ctcdecode.CTCBeamDecoder(labels=list("-abcdefghijklmnopqrstuvwxyz_"), blank_id=self.blank_label, log_probs_input=False, model_path=self.kenlm_path)
+        self.beam_decoder = ctcdecode.CTCBeamDecoder(labels=list(" abcdefghijklmnopqrstuvwxyz_"), blank_id=self.blank_label, log_probs_input=False, model_path=self.kenlm_path)
         self.criterion = torch.nn.CTCLoss(blank=self.blank_label, reduction='mean', zero_infinity=True)
-        self.optimizer = torch.optim.AdamW(params=self.parameters(), lr=self.adam_learning_rate, betas=self.adam_betas, eps=self.adam_eps, weight_decay=self.adam_weight_decay)
+        self.optimizer = torch.optim.SGD(params=self.parameters(), lr=2.5e-4, momentum=0.9)
+        # self.optimizer = torch.optim.AdamW(params=self.parameters(), lr=self.adam_learning_rate, betas=self.adam_betas, eps=self.adam_eps, weight_decay=self.adam_weight_decay)
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=0.2, patience=5)
 
     def forward(self, x, input_lengths):
