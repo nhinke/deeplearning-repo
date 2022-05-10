@@ -19,12 +19,8 @@ class RNN(torch.nn.Module):
         self.blank_label=blank_label
         self.rnn = torch.nn.LSTM(input_size=self.input_size, num_layers=self.num_layers, hidden_size=self.hidden_size, dropout=self.dropout, bidirectional=self.bidirectional, bias=True)
 
-    # def flatten_parameters(self):
-    #     self.rnn.flatten_parameters()
-
     def forward(self, x, output_lengths):
         x = torch.nn.utils.rnn.pack_padded_sequence(x, output_lengths, batch_first=False)
-        # print(x.shape)
         x, _ = self.rnn(x)
         x, _ = torch.nn.utils.rnn.pad_packed_sequence(x, padding_value=self.blank_label, batch_first=False)
         if self.bidirectional:
