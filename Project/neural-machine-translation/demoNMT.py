@@ -1,13 +1,10 @@
 
-import numpy as np
-import string
-from sklearn.preprocessing import LabelEncoder
-import torch.nn as nn
-import torch
-from torch import optim
-from torch.autograd import Variable
-import matplotlib.pyplot as plt
 import csv
+import torch
+import numpy as np
+import torch.nn as nn
+from torch.autograd import Variable
+from sklearn.preprocessing import LabelEncoder
 
 class EncoderRNN(nn.Module):
     def __init__(self, input_size, hidden_size, layers=1, dropout=0.1, bidirectional=True):
@@ -126,20 +123,9 @@ def demo(input_string, dictx, dicty):
     y_SOS = len(label_encodery.classes_)-1
     label_encodery.classes_ = np.append(label_encodery.classes_, '>')
     y_EOS = len(label_encodery.classes_)-1
-
-        
-    test_batches = torch.load('test_batches.pt')
-    batches = torch.load('batches.pt')
-
     
     
     split = input_string.split()
-    # transformed = np.zeros((1,len(split)))
-    # for a in range(len(split)):
-    #     if split[a] in dictx:
-    #         transformed[a] = dictx.index(a)
-    #     else:
-    #         transformed[a] = x_EOS
     
     transformed = list(label_encoderx.transform(split))
     transformed.insert(0, x_SOS)
@@ -151,13 +137,7 @@ def demo(input_string, dictx, dicty):
         t.append(transformed)
           
     transformed = torch.tensor(t)
-    # for i in range 
-    # while len(transformed) <17
-    #transformed = torch.tensor(transformed)
     
-    
-    
-    transformed2 = batches[0]
     
    # (20x17)
     layers = 2
@@ -168,8 +148,13 @@ def demo(input_string, dictx, dicty):
                      dropout=dropout, bidirectional=bidirectional)
     decoder = DecoderAttn(hidden_size, y_EOS+1, layers=layers, 
                       dropout=dropout, bidirectional=bidirectional)
-    encoder.load_state_dict(torch.load('encoder_80k.pth'))
-    decoder.load_state_dict(torch.load('decoder_80k.pth'))
+                      
+    # encoder.load_state_dict(torch.load('encoder_80k.pth'))
+    # decoder.load_state_dict(torch.load('decoder_80k.pth'))
+
+    path = '/home/nhinke/Documents/JHU/Robotics-MSE/S22/DL/Coursework/Project/neural-machine-translation/'
+    encoder.load_state_dict(torch.load(path + 'model-params/' + 'encoder.pth'))
+    decoder.load_state_dict(torch.load(path + 'model-params/' + 'decoder.pth'))
             
     #pred = test(transformed, encoder, decoder, y_SOS, label_encodery)
     test_batch(transformed, encoder, decoder, y_SOS, label_encodery)
@@ -201,43 +186,32 @@ def test_batch(input_batch, encoder, decoder, y_SOS, label_encodery):
     print(label_encodery.inverse_transform(torch.argmax(pred, dim=1)))
 
             
+def construct_dictx():
+
+    with open('dict_xx.csv', newline ='') as f:
+        reader = csv.reader(f)
+        dictx = list(reader)
+        f.close()
+
+    return dictx
+
+def construct_dicty():
+
+    with open('dict_yy.csv', newline ='') as f:
+        reader = csv.reader(f)
+        dicty = list(reader)
+        f.close()
+    
+    return dicty
+
   
+class NMTDemo():
 
-# def test(input_batch, encoder, decoder, y_SOS, label_encodery):
-    
-#     # enc_h_hidden, enc_c_hidden = encoder.create_init_hiddens(input_batch.shape)
-#     enc_h_hidden, enc_c_hidden = encoder.create_init_hiddens(1)
+    def __init__(self):
+        self.dictx = construct_dictx()
+        self.dicty = construct_dicty()
 
-#     enc_hiddens, enc_outputs = encoder(torch.tensor(input_batch), enc_h_hidden, enc_c_hidden)
+    def __call__(self, input_string):
+        return demo(input_string, self.dictx, self.dicty)
     
-#     decoder_input = Variable(torch.LongTensor(input_batch.shape).fill_(y_SOS))
-                             
-                             
-#     dec_h_hidden = enc_outputs[0]
-#     dec_c_hidden = enc_outputs[1]  
-    
-#     pred, dec_outputs = decoder(decoder_input, dec_h_hidden, dec_c_hidden, enc_hiddens)
-
-#     pred = pred.float()
-    
-#     return label_encodery.inverse_transform(torch.argmax(pred, dim=1))
-#     # output = []
-#     # for a in range(0,len(pred)):
-#     #     output.append(dicty[pred[a]])
-        
-#     # return 
-    
-    
-    
-    
-with open('dict_xx.csv', newline ='') as f:
-    reader = csv.reader(f)
-    dictx = list(reader)
-
-with open('dict_yy.csv', newline ='') as f:
-    reader = csv.reader(f)
-    dicty = list(reader)
-    
-input_string = 'go there'
-p = demo(input_string, dictx, dicty)
 

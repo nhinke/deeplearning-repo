@@ -13,7 +13,17 @@ from threading import Event
 from model3 import ASR
 from MCVdataset import DataPreprocesser
 
-# adapted from https://github.com/LearnedVector/A-Hackers-AI-Voice-Assistant/blob/master/VoiceAssistant/speechrecognition/engine.py
+import csv
+import torch
+import numpy as np
+import torch.nn as nn
+from torch.autograd import Variable
+from sklearn.preprocessing import LabelEncoder
+
+from demoNMT import NMTDemo 
+
+# initially adapted from https://github.com/LearnedVector/A-Hackers-AI-Voice-Assistant/blob/master/VoiceAssistant/speechrecognition/engine.py
+# but very little remains of original
 
 class Listener:
 
@@ -58,7 +68,8 @@ class SpeechRecognitionEngine:
     def __init__(self, sample_rate=48000, context_length=10):
         self.sample_rate = sample_rate
         self.listener = Listener(sample_rate=self.sample_rate)
-        self.model = ASR()
+        # self.model = ASR()
+        self.model = ASR(load_path_ext='asr-report.pth', save_path_ext='asr-report.pth')
         self.model.load_saved_model()
         self.model.eval().to(torch.device('cpu'))  #run on cpu
         self.data_preprocesser = DataPreprocesser(augment=False, resample_audio=True)
@@ -152,12 +163,12 @@ class DemoAction:
         # print()
 
         if (self.print_greedy_results):
-            print(f"Greedy results:  '{greedy_results_str}'")
+            print(f"ASR Greedy results:   '{greedy_results_str}'")
 
-        print(f"CTCBeam results: '{beam_results_str}'")
+        print(f"ASR CTCBeam results:  '{beam_results_str}'")
 
         if (self.print_transcript):
-            print(f"Total transcript: '{transcript}'")
+            print(f"ASR Total transcript:  '{transcript}'")
 
         # if current_context_length > 10:
         #     self.asr_results = transcript
@@ -169,9 +180,11 @@ def main():
     # asr_engine.run(action)
     # threading.Event().wait()
 
+
     recording_time = 4
     audio_sample_rate = 48000
 
+    nmt_engine = NMTDemo()
     asr_engine = SpeechRecognitionEngine(sample_rate=audio_sample_rate)
     asr_demo = DemoAction(print_aggregate_transcript=False, print_greedy_results=True)
     py_listener = Listener(sample_rate=audio_sample_rate, record_seconds=recording_time)
@@ -181,13 +194,20 @@ def main():
         inp = input(f"\nPress enter to start recording for {recording_time} seconds or type 'q' to quit...")
         if (inp == 'q' or inp == ' q'):
             py_listener.close()
+            print()
             return
 
         # audio_queue = list().copy()
         audio_queue = py_listener.listen_once()
         print('Finished recording! Now processing audio...')
-        prediction = asr_engine.predict(audio_queue.copy())
-        asr_demo(prediction)
+
+        pred_greedy, pred_ctc = asr_engine.predict(audio_queue.copy())
+        asr_demo((pred_greedy,pred_ctc))
+
+        try:
+            nmt_engine(pred_ctc)
+        except:
+            print('NMT engine failed...')
 
 
 if __name__ == "__main__":
