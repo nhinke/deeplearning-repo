@@ -18,7 +18,7 @@ import torchaudio
 from torchinfo import summary
 from MCVencoding import EncoderDecoder
 from myMCVdataset import myMozillaCommonVoiceDataset
-from MCVdataset import MozillaCommonVoiceDataset, resample_audio
+from MCVdataset import MozillaCommonVoiceDataset
 from MCVdataloader import MozillaCommonVoiceDataLoader
 
 from model3 import ASR
@@ -148,52 +148,56 @@ def plot_metrics_from_logs(train_log, valid_log, on_same_plot=False):
 
 def main():
 
-    num_epochs = 5
+    num_epochs = 10
     valid_batch_size = 12
     train_batch_size = 12
-    use_my_own_data = True
-    perform_validation = False
-    percent_of_validation_set_to_use = 0.10
+    use_my_own_data = False
+    perform_validation = True
+    # percent_of_validation_set_to_use = 0.10
+    percent_of_validation_set_to_use = 0.15
     # percent_of_validation_set_to_use = 0.25
 
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     print(f'\nDevice to be used during training: {device}')
 
+    train_log_file = 'training_loss.csv'
+    valid_log_file = 'validation_loss.csv'
+
     logs_header = ['Seq','Epoch','BatchSize','DatasetSize','Iteration','CTCLoss','AvgWER','AvgCER']
     logs_path = '/home/nhinke/Documents/JHU/Robotics-MSE/S22/DL/Coursework/Project/automatic-speech-recognition/log'
-    logs_existed, log_training_loss, log_validation_loss = get_training_logs(logs_path,logs_header)
-    curr_training_seq, starting_epoch = get_current_training_seq_and_epoch(logs_existed,log_training_loss)
+    logs_existed, log_training_loss, log_validation_loss = get_training_logs(logs_path, logs_header, train_file=train_log_file, valid_file=valid_log_file)
+    curr_training_seq, starting_epoch = get_current_training_seq_and_epoch(logs_existed, log_training_loss)
 
     plot_logs = False
     if (plot_logs):
-        plot_losses_from_logs(log_training_loss,log_validation_loss)
-        plot_metrics_from_logs(log_training_loss,log_validation_loss,on_same_plot=False)
+        plot_losses_from_logs(log_training_loss, log_validation_loss)
+        plot_metrics_from_logs(log_training_loss, log_validation_loss, on_same_plot=False)
         plt.show()
         quit()
 
-    # data_path = '/home/nhinke/Documents/JHU/Robotics-MSE/S22/DL/Coursework/Project/automatic-speech-recognition/data/en-1.0'
-    # ds_train = MozillaCommonVoiceDataset(root=data_path, tsv='train.tsv', augment=True, resample_audio=False)
-    # ds_valid = MozillaCommonVoiceDataset(root=data_path, tsv='dev.tsv', augment=False, resample_audio=False)
-    data_path = '/home/nhinke/Documents/JHU/Robotics-MSE/S22/DL/Coursework/Project/automatic-speech-recognition/data/en-5.1'
-    ds_train = MozillaCommonVoiceDataset(root=data_path, tsv='train.tsv', augment=True, resample_audio=True)
-    ds_valid = MozillaCommonVoiceDataset(root=data_path, tsv='dev.tsv', augment=False, resample_audio=True)
+    data_path = '/home/nhinke/Documents/JHU/Robotics-MSE/S22/DL/Coursework/Project/automatic-speech-recognition/data/en-1.0'
+    ds_train = MozillaCommonVoiceDataset(root=data_path, tsv='train.tsv', augment=True, resample_audio=False)
+    ds_valid = MozillaCommonVoiceDataset(root=data_path, tsv='dev.tsv', augment=False, resample_audio=False)
+    # data_path = '/home/nhinke/Documents/JHU/Robotics-MSE/S22/DL/Coursework/Project/automatic-speech-recognition/data/en-5.1'
+    # ds_train = MozillaCommonVoiceDataset(root=data_path, tsv='train.tsv', augment=True, resample_audio=True)
+    # ds_valid = MozillaCommonVoiceDataset(root=data_path, tsv='dev.tsv', augment=False, resample_audio=True)
     ds_train_len = ds_train.__len__()
     ds_valid_len = ds_valid.__len__()
-    # print(ds_train_len)
-    # print(ds_valid_len)
 
     my_data_path = '/home/nhinke/Documents/JHU/Robotics-MSE/S22/DL/Coursework/Project/automatic-speech-recognition/data/my-data'
     ds_mine = myMozillaCommonVoiceDataset(root=my_data_path, csvfile='my-recorded-data.csv', augment=True, resample_audio=True)
     mine_loader = MozillaCommonVoiceDataLoader(ds_mine, batch_size=train_batch_size, shuffle=True, num_workers=4)
     # print(ds_mine.__len__())
-    # quit()
 
     train_loader = MozillaCommonVoiceDataLoader(ds_train, batch_size=train_batch_size, shuffle=True, num_workers=4)
     valid_loader = MozillaCommonVoiceDataLoader(ds_valid, batch_size=valid_batch_size, shuffle=False, num_workers=4)
 
-    model = ASR()
-    # model = ASR(load_path_ext='asr-ten.pth',save_path_ext='asr-ten.pth') # overfit to ten batches
+    # model = ASR()
+    # model.load_saved_model()
+
+    model = ASR(load_path_ext='asr-report.pth', save_path_ext='asr-report.pth')
     model.load_saved_model()
+
     model.to(device)
 
     print('ASR Model Summary:')
@@ -202,10 +206,10 @@ def main():
     
     model.train()
 
-    print_examples = True
+    print_examples = False
     if (print_examples):
         model.eval()
-        for id,data in enumerate(mine_loader): 
+        for id,data in enumerate(valid_loader): 
             st = time.time()
             inputs, labels, input_lengths, label_lengths = data
             inputs = inputs.to(device)

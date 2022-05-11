@@ -54,7 +54,7 @@ class ASR(torch.nn.Module):
     lstm_layers = 3
     lstm_bidirectional = True
 
-    adam_learning_rate = 2.5e-5
+    adam_learning_rate = 2.5e-4
     adam_betas = (0.9, 0.999)
     adam_eps = 1e-8
     adam_weight_decay = 1e-5
@@ -105,8 +105,8 @@ class ASR(torch.nn.Module):
         # self.beam_decoder = ctcdecode.CTCBeamDecoder(labels=list("-abcdefghijklmnopqrstuvwxyz_"), blank_id=self.blank_label, log_probs_input=False, model_path=self.kenlm_path)
         self.beam_decoder = ctcdecode.CTCBeamDecoder(labels=list(" abcdefghijklmnopqrstuvwxyz_"), blank_id=self.blank_label, log_probs_input=False, model_path=self.kenlm_path)
         self.criterion = torch.nn.CTCLoss(blank=self.blank_label, reduction='mean', zero_infinity=True)
-        self.optimizer = torch.optim.SGD(params=self.parameters(), lr=2.5e-4, momentum=0.9)
-        # self.optimizer = torch.optim.AdamW(params=self.parameters(), lr=self.adam_learning_rate, betas=self.adam_betas, eps=self.adam_eps, weight_decay=self.adam_weight_decay)
+        # self.optimizer = torch.optim.SGD(params=self.parameters(), lr=2.5e-4, momentum=0.9)
+        self.optimizer = torch.optim.AdamW(params=self.parameters(), lr=self.adam_learning_rate, betas=self.adam_betas, eps=self.adam_eps, weight_decay=self.adam_weight_decay)
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=0.2, patience=5)
 
     def forward(self, x, input_lengths):
