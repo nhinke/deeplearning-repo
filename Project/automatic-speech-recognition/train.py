@@ -175,12 +175,12 @@ def main():
         plt.show()
         quit()
 
-    data_path = '/home/nhinke/Documents/JHU/Robotics-MSE/S22/DL/Coursework/Project/automatic-speech-recognition/data/en-1.0'
-    ds_train = MozillaCommonVoiceDataset(root=data_path, tsv='train.tsv', augment=True, resample_audio=False)
-    ds_valid = MozillaCommonVoiceDataset(root=data_path, tsv='dev.tsv', augment=False, resample_audio=False)
-    # data_path = '/home/nhinke/Documents/JHU/Robotics-MSE/S22/DL/Coursework/Project/automatic-speech-recognition/data/en-5.1'
-    # ds_train = MozillaCommonVoiceDataset(root=data_path, tsv='train.tsv', augment=True, resample_audio=True)
-    # ds_valid = MozillaCommonVoiceDataset(root=data_path, tsv='dev.tsv', augment=False, resample_audio=True)
+    # data_path = '/home/nhinke/Documents/JHU/Robotics-MSE/S22/DL/Coursework/Project/automatic-speech-recognition/data/en-1.0'
+    # ds_train = MozillaCommonVoiceDataset(root=data_path, tsv='train.tsv', augment=True, resample_audio=False)
+    # ds_valid = MozillaCommonVoiceDataset(root=data_path, tsv='dev.tsv', augment=False, resample_audio=False)
+    data_path = '/home/nhinke/Documents/JHU/Robotics-MSE/S22/DL/Coursework/Project/automatic-speech-recognition/data/en-5.1'
+    ds_train = MozillaCommonVoiceDataset(root=data_path, tsv='train.tsv', augment=True, resample_audio=True)
+    ds_valid = MozillaCommonVoiceDataset(root=data_path, tsv='dev.tsv', augment=False, resample_audio=True)
     ds_train_len = ds_train.__len__()
     ds_valid_len = ds_valid.__len__()
 
